@@ -541,6 +541,9 @@ public class Runner {
                             logger.warn("Did't get heartbeat from master in over {}s", MASTER_HEARTBEAT_TIMEOUT_SOFT);
                         }
                     } else {
+                        if (heartbeatTimeoutMessagesCounter > 0) {
+                            logger.info("Heartbeat from master is received");
+                        }
                         heartbeatTimeoutMessagesCounter = 0;
                     }
                 } catch (InterruptedException ex) {
