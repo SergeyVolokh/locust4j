@@ -107,7 +107,7 @@ public class Runner {
     }
 
     protected boolean isMasterHeartbeatTimeout(long timeout) {
-        if (this.lastMasterHeartbeatTimestamp.get() != 0) {
+        if (this.lastMasterHeartbeatTimestamp.get() != 0 && timeout > 0) {
             return (System.currentTimeMillis() - this.lastMasterHeartbeatTimestamp.get()) > timeout;
         } else {
             return false;
@@ -503,8 +503,25 @@ public class Runner {
 
     private static class HeartbeatListener implements Runnable {
 
-        private static final int MASTER_HEARTBEAT_TIMEOUT = 60000;
+        /**
+         * Hard master heartbeat timeout initiates stop of this Locust worker instance execution.
+         * Measured in milliseconds.
+         * <p/>Default value is 0 - hard timeout is disabled.
+         */
+        private static final int MASTER_HEARTBEAT_TIMEOUT_HARD = Integer.parseInt(Utils.getSystemEnvWithDefault(
+                "LOCUST_MASTER_HEARTBEAT_TIMEOUT_HARD", "0"));
+
+        /**
+         * Soft master heartbeat timeout is just for logging of warning message about it without test execution stopping in the Locust worker.
+         * Measured in milliseconds.
+         * <p/>Default value is 60'000.
+         */
+        private static final int MASTER_HEARTBEAT_TIMEOUT_SOFT = Integer.parseInt(Utils.getSystemEnvWithDefault(
+                "LOCUST_MASTER_HEARTBEAT_TIMEOUT_SOFT", "60000"));
+
         private final Runner runner;
+
+        private int heartbeatTimeoutMessagesCounter = 0;
 
         private HeartbeatListener(Runner runner) {
             this.runner = runner;
@@ -515,9 +532,16 @@ public class Runner {
             while (true) {
                 try {
                     Thread.sleep(1000);
-                    if (runner.isMasterHeartbeatTimeout(MASTER_HEARTBEAT_TIMEOUT)) {
-                        logger.error("Did't get heartbeat from master in over 60s, quitting");
-                        runner.quit();
+                    if (runner.isMasterHeartbeatTimeout(MASTER_HEARTBEAT_TIMEOUT_HARD)) {
+                        logger.error("Did't get heartbeat from master in over {}s, quitting", MASTER_HEARTBEAT_TIMEOUT_HARD);
+                        Locust.getInstance().stop();
+                    } else if (runner.isMasterHeartbeatTimeout(MASTER_HEARTBEAT_TIMEOUT_SOFT)) {
+                        // Logs timeout warning once per 60 seconds instead of once per second:
+                        if (heartbeatTimeoutMessagesCounter++ % (MASTER_HEARTBEAT_TIMEOUT_SOFT / 1000) == 0) {
+                            logger.warn("Did't get heartbeat from master in over {}s", MASTER_HEARTBEAT_TIMEOUT_SOFT);
+                        }
+                    } else {
+                        heartbeatTimeoutMessagesCounter = 0;
                     }
                 } catch (InterruptedException ex) {
                     return;
