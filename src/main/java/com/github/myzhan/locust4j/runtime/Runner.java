@@ -303,6 +303,7 @@ public class Runner {
             case "ack":
             case "spawn":
             case "stop":
+            case "spawning_complete":
                 break;
             case "heartbeat":
                 this.lastMasterHeartbeatTimestamp.set(System.currentTimeMillis());
